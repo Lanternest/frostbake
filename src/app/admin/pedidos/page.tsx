@@ -19,17 +19,21 @@ export default function Pedidos() {
     const [detalle, setDetalle] = useState<Pedido | null>(null)
 
     const cargarPedidos = async () => {
-        const { data } = await supabase
-            .from("pedidos")
-            .select(`
-        *,
-        perfiles ( nombre, apellido ),
-        locales ( nombre, direccion )
-      `)
-            .neq("estado", "entregado")
-            .order("created_at", { ascending: false })
-        if (data) setPedidos(data as Pedido[])
-    }
+    const { data, error } = await supabase
+        .from("pedidos")
+        .select(`
+            *,
+            perfiles!pedidos_cliente_id_fkey ( nombre, apellido ),
+            locales ( nombre, direccion )
+        `)
+        .neq("estado", "entregado")
+        .order("created_at", { ascending: false })
+    
+    console.log("DATA:", JSON.stringify(data))
+    console.log("ERROR:", JSON.stringify(error))
+    
+    if (data) setPedidos(data as Pedido[])
+}
 
     useEffect(() => {
         cargarPedidos()

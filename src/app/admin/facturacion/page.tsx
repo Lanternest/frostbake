@@ -59,7 +59,7 @@ export default function Facturacion() {
             .from("pedidos")
             .select(`
         id, total, estado, created_at,
-        perfiles ( nombre, apellido ),
+        perfiles!pedidos_cliente_id_fkey ( nombre, apellido ),
         locales ( nombre, direccion )
       `)
             .order("created_at", { ascending: false })

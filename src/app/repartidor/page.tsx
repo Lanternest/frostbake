@@ -34,21 +34,24 @@ export default function RepartidorPanel() {
         const hoy = new Date()
         hoy.setHours(0, 0, 0, 0)
 
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from("pedidos")
             .select(`
-    *,
-    perfiles ( nombre, apellido, telefono ),
-    locales ( nombre, direccion, telefono ),
-    pedido_items (
-      cantidad,
-      precio_unitario,
-      productos ( nombre )
-    )
-  `)
+                *,
+                perfiles!pedidos_cliente_id_fkey ( nombre, apellido, telefono ),
+                locales ( nombre, direccion, telefono ),
+                pedido_items (
+                    cantidad,
+                    precio_unitario,
+                    productos ( nombre )
+                )
+            `)
             .neq("estado", "entregado")
             .gte("created_at", hoy.toISOString())
             .order("created_at")
+
+        console.log("REPARTIDOR DATA:", JSON.stringify(data))
+        console.log("REPARTIDOR ERROR:", JSON.stringify(error))
 
         if (data) setPedidos(data as Pedido[])
         setCargando(false)

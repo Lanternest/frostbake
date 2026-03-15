@@ -48,7 +48,7 @@ export default function Repartidores() {
             .from("repartidores")
             .select(`
         *,
-        perfiles ( nombre, apellido, telefono )
+        perfiles!pedidos_cliente_id_fkey ( nombre, apellido, telefono )
       `)
             .order("fecha_contratacion", { ascending: false })
 
