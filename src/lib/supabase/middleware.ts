@@ -31,7 +31,8 @@ export async function updateSession(request: NextRequest) {
     const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
     const isClienteRoute = request.nextUrl.pathname.startsWith("/cliente")
     const isRepartidorRoute = request.nextUrl.pathname.startsWith("/repartidor")
-    const isProtectedRoute = isAdminRoute || isClienteRoute || isRepartidorRoute
+    const isCarritoRoute = request.nextUrl.pathname === "/carrito"
+    const isProtectedRoute = isAdminRoute || isClienteRoute || isRepartidorRoute || isCarritoRoute
 
     if (isProtectedRoute && !user) {
         return NextResponse.redirect(new URL("/auth/login", request.url))

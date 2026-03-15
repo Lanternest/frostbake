@@ -10,5 +10,6 @@ export const config = {
         "/admin/:path*",
         "/cliente/:path*",
         "/repartidor/:path*",
+        "/carrito",
     ],
 }
