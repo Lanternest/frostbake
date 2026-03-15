@@ -123,6 +123,22 @@ export default function Carrito() {
             }))
         )
 
+        // Descontar stock de forma atómica
+        for (const item of items) {
+            const { error: stockError } = await supabase.rpc("descontar_stock", {
+                producto_id: item.producto.id,
+                cantidad: item.cantidad,
+            })
+
+            if (stockError) {
+                alert(`Sin stock suficiente para ${item.producto.nombre}. El pedido fue cancelado.`)
+                // Eliminar el pedido creado
+                await supabase.from("pedidos").delete().eq("id", pedido.id)
+                setCargando(false)
+                return
+            }
+        }
+
         // Insertar pagos
         const pagos = []
         if (metodoPago.includes("efectivo")) {

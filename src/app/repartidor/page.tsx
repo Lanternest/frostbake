@@ -41,10 +41,11 @@ export default function RepartidorPanel() {
                 perfiles!pedidos_cliente_id_fkey ( nombre, apellido, telefono ),
                 locales ( nombre, direccion, telefono ),
                 pedido_items (
-                    cantidad,
-                    precio_unitario,
-                    productos ( nombre )
-                )
+                cantidad,
+                precio_unitario,
+                producto_id,
+                productos ( nombre )
+)
             `)
             .neq("estado", "entregado")
             .gte("created_at", hoy.toISOString())
@@ -67,11 +68,11 @@ export default function RepartidorPanel() {
     }, [])
 
     const actualizarEstado = async (id: string, estado: string) => {
-        setActualizando(id)
-        await supabase.from("pedidos").update({ estado }).eq("id", id)
-        await cargar()
-        setActualizando(null)
-    }
+    setActualizando(id)
+    await supabase.from("pedidos").update({ estado }).eq("id", id)
+    await cargar()
+    setActualizando(null)
+}
 
     const abrirMaps = (direccion: string) => {
         const query = encodeURIComponent(direccion)
