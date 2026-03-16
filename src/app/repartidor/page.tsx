@@ -23,6 +23,15 @@ interface Pedido {
 export default function RepartidorPanel() {
     const supabase = createClient()
     const [pedidos, setPedidos] = useState<Pedido[]>([])
+    const [busqueda, setBusqueda] = useState("")
+    const pedidosFiltrados = pedidos.filter(p => {
+        const q = busqueda.toLowerCase()
+        const local = p.locales?.nombre?.toLowerCase() ?? ""
+        const direccion = p.locales?.direccion?.toLowerCase() ?? ""
+        const cliente = p.perfiles ? `${p.perfiles.nombre} ${p.perfiles.apellido}`.toLowerCase() : ""
+        const id = p.id.slice(0, 8).toLowerCase()
+        return local.includes(q) || direccion.includes(q) || cliente.includes(q) || id.includes(q)
+    })
     const [cargando, setCargando] = useState(true)
     const [expandido, setExpandido] = useState<string | null>(null)
     const [actualizando, setActualizando] = useState<string | null>(null)
@@ -31,28 +40,43 @@ export default function RepartidorPanel() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const hoy = new Date()
-        hoy.setHours(0, 0, 0, 0)
+        // Obtener vehículos asignados al repartidor
+        const { data: asignaciones } = await supabase
+            .from("repartidor_vehiculo")
+            .select("vehiculo_id")
+            .eq("repartidor_id", user.id)
+
+        console.log("ASIGNACIONES:", JSON.stringify(asignaciones))
+        console.log("USER ID:", user.id)
+
+        if (!asignaciones || asignaciones.length === 0) {
+            setPedidos([])
+            setCargando(false)
+            return
+        }
+
+        const vehiculoIds = asignaciones.map(a => a.vehiculo_id)
+        console.log("VEHICULO IDS:", JSON.stringify(vehiculoIds))
 
         const { data, error } = await supabase
             .from("pedidos")
             .select(`
-                *,
-                perfiles!pedidos_cliente_id_fkey ( nombre, apellido, telefono ),
-                locales ( nombre, direccion, telefono ),
-                pedido_items (
+            *,
+            perfiles!pedidos_cliente_id_fkey ( nombre, apellido, telefono ),
+            locales ( nombre, direccion, telefono ),
+            pedido_items (
                 cantidad,
                 precio_unitario,
                 producto_id,
                 productos ( nombre )
-)
-            `)
+            )
+        `)
             .neq("estado", "entregado")
-            .gte("created_at", hoy.toISOString())
+            .in("vehiculo_id", vehiculoIds)
             .order("created_at")
 
-        console.log("REPARTIDOR DATA:", JSON.stringify(data))
-        console.log("REPARTIDOR ERROR:", JSON.stringify(error))
+        console.log("PEDIDOS DATA:", JSON.stringify(data))
+        console.log("PEDIDOS ERROR:", JSON.stringify(error))
 
         if (data) setPedidos(data as Pedido[])
         setCargando(false)
@@ -68,11 +92,11 @@ export default function RepartidorPanel() {
     }, [])
 
     const actualizarEstado = async (id: string, estado: string) => {
-    setActualizando(id)
-    await supabase.from("pedidos").update({ estado }).eq("id", id)
-    await cargar()
-    setActualizando(null)
-}
+        setActualizando(id)
+        await supabase.from("pedidos").update({ estado }).eq("id", id)
+        await cargar()
+        setActualizando(null)
+    }
 
     const abrirMaps = (direccion: string) => {
         const query = encodeURIComponent(direccion)
@@ -95,8 +119,16 @@ export default function RepartidorPanel() {
                     {pedidos.length} {pedidos.length === 1 ? "pedido" : "pedidos"}
                 </span>
             </div>
-
-            {pedidos.length === 0 ? (
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    placeholder="Buscar por local, dirección o cliente..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+            </div>
+            {pedidosFiltrados.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
                     <div className="text-5xl mb-4">✅</div>
                     <p className="text-gray-600 font-medium">No tenés entregas pendientes</p>
@@ -104,7 +136,7 @@ export default function RepartidorPanel() {
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {pedidos.map(p => (
+                    {pedidosFiltrados.map(p => (
                         <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
                             {/* Header del pedido */}

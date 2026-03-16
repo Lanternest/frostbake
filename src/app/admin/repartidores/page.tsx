@@ -11,7 +11,7 @@ interface Repartidor {
     dni: string
     fecha_contratacion: string
     usuario_creado: boolean
-    email?: string
+    vehiculos: { patente: string; marca: string; modelo: string }[]
 }
 
 interface FormRepartidor {
@@ -22,6 +22,14 @@ interface FormRepartidor {
     fecha_contratacion: string
     email: string
     password: string
+}
+
+interface Vehiculo {
+    id: string
+    patente: string
+    marca: string
+    modelo: string
+    estado: string
 }
 
 const formVacio: FormRepartidor = {
@@ -37,19 +45,36 @@ const formVacio: FormRepartidor = {
 export default function Repartidores() {
     const supabase = createClient()
     const [repartidores, setRepartidores] = useState<Repartidor[]>([])
+    const [busqueda, setBusqueda] = useState("")
+    const repartidoresFiltrados = repartidores.filter(r => {
+        const q = busqueda.toLowerCase()
+        return (
+            r.nombre?.toLowerCase().includes(q) ||
+            r.apellido?.toLowerCase().includes(q) ||
+            r.dni?.toLowerCase().includes(q) ||
+            r.telefono?.toLowerCase().includes(q)
+        )
+    })
+    const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
     const [modalAbierto, setModalAbierto] = useState(false)
+    const [modalVehiculo, setModalVehiculo] = useState<Repartidor | null>(null)
+    const [vehiculosSeleccionados, setVehiculosSeleccionados] = useState<string[]>([])
     const [editando, setEditando] = useState<Repartidor | null>(null)
     const [form, setForm] = useState<FormRepartidor>(formVacio)
     const [cargando, setCargando] = useState(false)
-    const [creandoUsuario, setCreandoUsuario] = useState<string | null>(null)
+    const [guardandoVehiculo, setGuardandoVehiculo] = useState(false)
 
     const cargar = async () => {
         const { data } = await supabase
             .from("repartidores")
             .select(`
-        *,
-        perfiles!pedidos_cliente_id_fkey ( nombre, apellido, telefono )
-      `)
+                *,
+                perfiles ( nombre, apellido, telefono ),
+                repartidor_vehiculo (
+                    vehiculo_id,
+                    vehiculos ( patente, marca, modelo )
+                )
+            `)
             .order("fecha_contratacion", { ascending: false })
 
         if (data) {
@@ -61,9 +86,17 @@ export default function Repartidores() {
                 dni: r.dni,
                 fecha_contratacion: r.fecha_contratacion,
                 usuario_creado: r.usuario_creado,
+                vehiculos: r.repartidor_vehiculo?.map((rv: any) => rv.vehiculos).filter(Boolean) ?? [],
             }))
             setRepartidores(mapeados)
         }
+
+        const { data: vehs } = await supabase
+            .from("vehiculos")
+            .select("*")
+            .eq("estado", "activo")
+            .order("marca")
+        if (vehs) setVehiculos(vehs)
     }
 
     useEffect(() => { cargar() }, [])
@@ -86,6 +119,45 @@ export default function Repartidores() {
             password: "",
         })
         setModalAbierto(true)
+    }
+
+    const abrirAsignarVehiculo = (r: Repartidor) => {
+        setModalVehiculo(r)
+        setVehiculosSeleccionados(r.vehiculos.map((v: any) => {
+            const rv = vehiculos.find(veh => veh.patente === v.patente)
+            return rv?.id ?? ""
+        }).filter(Boolean))
+    }
+
+    const handleGuardarVehiculo = async () => {
+        if (!modalVehiculo) return
+        setGuardandoVehiculo(true)
+
+        // Eliminar asignaciones anteriores
+        await supabase
+            .from("repartidor_vehiculo")
+            .delete()
+            .eq("repartidor_id", modalVehiculo.id)
+
+        // Insertar nuevas asignaciones
+        if (vehiculosSeleccionados.length > 0) {
+            await supabase.from("repartidor_vehiculo").insert(
+                vehiculosSeleccionados.map(vid => ({
+                    repartidor_id: modalVehiculo.id,
+                    vehiculo_id: vid,
+                }))
+            )
+        }
+
+        await cargar()
+        setModalVehiculo(null)
+        setGuardandoVehiculo(false)
+    }
+
+    const toggleVehiculo = (id: string) => {
+        setVehiculosSeleccionados(prev =>
+            prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
+        )
     }
 
     const handleGuardar = async () => {
@@ -145,7 +217,15 @@ export default function Repartidores() {
                     + Agregar repartidor
                 </button>
             </div>
-
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    placeholder="Buscar por nombre, apellido, DNI o teléfono..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+            </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -155,19 +235,19 @@ export default function Repartidores() {
                                 <th className="text-left px-4 py-3 font-semibold text-gray-600">DNI</th>
                                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Teléfono</th>
                                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Contratación</th>
-                                <th className="text-left px-4 py-3 font-semibold text-gray-600">Usuario</th>
+                                <th className="text-left px-4 py-3 font-semibold text-gray-600">Vehículos</th>
                                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {repartidores.length === 0 ? (
+                            {repartidoresFiltrados.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="text-center py-10 text-gray-400">
                                         No hay repartidores registrados
                                     </td>
                                 </tr>
                             ) : (
-                                repartidores.map(r => (
+                                repartidoresFiltrados.map(r => (
                                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-4 py-3 font-medium text-gray-800">
                                             {r.nombre} {r.apellido}
@@ -178,13 +258,26 @@ export default function Repartidores() {
                                             {new Date(r.fecha_contratacion).toLocaleDateString("es-AR")}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {r.usuario_creado
-                                                ? <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-1 rounded-full">Creado</span>
-                                                : <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2 py-1 rounded-full">Sin usuario</span>
-                                            }
+                                            {r.vehiculos.length === 0 ? (
+                                                <span className="text-gray-400 text-xs">Sin asignar</span>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {r.vehiculos.map((v, i) => (
+                                                        <span key={i} className="bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                                                            {v.patente}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => abrirAsignarVehiculo(r)}
+                                                    className="text-green-600 hover:underline text-xs font-medium"
+                                                >
+                                                    Vehículo
+                                                </button>
                                                 <button
                                                     onClick={() => abrirEditar(r)}
                                                     className="text-blue-600 hover:underline text-xs font-medium"
@@ -207,7 +300,60 @@ export default function Repartidores() {
                 </div>
             </div>
 
-            {/* Modal */}
+            {/* Modal asignar vehículo */}
+            {modalVehiculo && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-1">
+                            Asignar vehículo
+                        </h2>
+                        <p className="text-sm text-gray-500 mb-5">
+                            {modalVehiculo.nombre} {modalVehiculo.apellido}
+                        </p>
+
+                        {vehiculos.length === 0 ? (
+                            <p className="text-gray-400 text-sm text-center py-4">
+                                No hay vehículos activos disponibles
+                            </p>
+                        ) : (
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {vehiculos.map(v => (
+                                    <label key={v.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${vehiculosSeleccionados.includes(v.id) ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={vehiculosSeleccionados.includes(v.id)}
+                                            onChange={() => toggleVehiculo(v.id)}
+                                            className="w-4 h-4"
+                                        />
+                                        <div>
+                                            <p className="font-medium text-gray-800 text-sm">{v.marca} {v.modelo}</p>
+                                            <p className="text-xs text-gray-500 font-mono">{v.patente}</p>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setModalVehiculo(null)}
+                                className="flex-1 border border-gray-200 text-gray-600 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleGuardarVehiculo}
+                                disabled={guardandoVehiculo}
+                                className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-xl transition-colors text-sm"
+                            >
+                                {guardandoVehiculo ? "Guardando..." : "Guardar"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal crear/editar repartidor */}
             {modalAbierto && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -252,27 +398,25 @@ export default function Repartidores() {
                                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
                             </div>
                             {!editando && (
-                                <>
-                                    <div className="border-t border-gray-100 pt-4">
-                                        <p className="text-sm font-medium text-gray-700 mb-3">Credenciales de acceso</p>
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                                <input type="email" value={form.email}
-                                                    onChange={e => setForm({ ...form, email: e.target.value })}
-                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                                    placeholder="repartidor@frostbake.com" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                                                <input type="password" value={form.password}
-                                                    onChange={e => setForm({ ...form, password: e.target.value })}
-                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                                    placeholder="Mínimo 6 caracteres" />
-                                            </div>
+                                <div className="border-t border-gray-100 pt-4">
+                                    <p className="text-sm font-medium text-gray-700 mb-3">Credenciales de acceso</p>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                            <input type="email" value={form.email}
+                                                onChange={e => setForm({ ...form, email: e.target.value })}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                                placeholder="repartidor@frostbake.com" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                                            <input type="password" value={form.password}
+                                                onChange={e => setForm({ ...form, password: e.target.value })}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                                placeholder="Mínimo 6 caracteres" />
                                         </div>
                                     </div>
-                                </>
+                                </div>
                             )}
                         </div>
                         <div className="flex gap-3 mt-6">

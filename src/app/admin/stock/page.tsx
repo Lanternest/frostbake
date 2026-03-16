@@ -29,6 +29,15 @@ const formVacio: FormProducto = {
 export default function Stock() {
     const supabase = createClient()
     const [productos, setProductos] = useState<Producto[]>([])
+    const [busqueda, setBusqueda] = useState("")
+
+    const productosFiltrados = productos.filter(p => {
+        const q = busqueda.toLowerCase()
+        return (
+            p.nombre?.toLowerCase().includes(q) ||
+            p.peso_contenido?.toLowerCase().includes(q)
+        )
+    })
     const [modalAbierto, setModalAbierto] = useState(false)
     const [editando, setEditando] = useState<Producto | null>(null)
     const [form, setForm] = useState<FormProducto>(formVacio)
@@ -118,6 +127,15 @@ export default function Stock() {
                     + Agregar producto
                 </button>
             </div>
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    placeholder="Buscar por nombre o contenido..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+            </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -133,14 +151,14 @@ export default function Stock() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {productos.length === 0 ? (
+                            {productosFiltrados.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="text-center py-10 text-gray-400">
-                                        No hay productos cargados
+                                        No se encontraron productos
                                     </td>
                                 </tr>
                             ) : (
-                                productos.map(p => (
+                                productosFiltrados.map(p => (
                                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-4 py-3 font-medium text-gray-800">{p.nombre}</td>
                                         <td className="px-4 py-3 text-gray-500">{p.peso_contenido}</td>

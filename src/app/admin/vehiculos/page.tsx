@@ -28,6 +28,16 @@ const formVacio: FormVehiculo = {
 export default function Vehiculos() {
     const supabase = createClient()
     const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
+    const [busqueda, setBusqueda] = useState("")
+    const vehiculosFiltrados = vehiculos.filter(v => {
+        const q = busqueda.toLowerCase()
+        return (
+            v.patente?.toLowerCase().includes(q) ||
+            v.marca?.toLowerCase().includes(q) ||
+            v.modelo?.toLowerCase().includes(q) ||
+            v.estado?.toLowerCase().includes(q)
+        )
+    })
     const [modalAbierto, setModalAbierto] = useState(false)
     const [editando, setEditando] = useState<Vehiculo | null>(null)
     const [form, setForm] = useState<FormVehiculo>(formVacio)
@@ -92,7 +102,15 @@ export default function Vehiculos() {
                     + Agregar vehículo
                 </button>
             </div>
-
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    placeholder="Buscar por patente, marca, modelo o estado..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+            </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -106,14 +124,14 @@ export default function Vehiculos() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {vehiculos.length === 0 ? (
+                            {vehiculosFiltrados.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="text-center py-10 text-gray-400">
                                         No hay vehículos registrados
                                     </td>
                                 </tr>
                             ) : (
-                                vehiculos.map(v => (
+                                vehiculosFiltrados.map(v => (
                                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-4 py-3 font-mono font-medium text-gray-800">
                                             {v.patente}

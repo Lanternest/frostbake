@@ -1,8 +1,6 @@
-import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
-    const supabase = await createClient()
     const { nombre, apellido, telefono, dni, fecha_contratacion, email, password } = await request.json()
 
     const { createClient: createAdmin } = await import("@supabase/supabase-js")
@@ -21,7 +19,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: authError?.message }, { status: 400 })
     }
 
-    await admin.from("perfiles").insert({
+    const { error: perfilError } = await admin.from("perfiles").upsert({
         id: authData.user.id,
         rol: "repartidor",
         nombre,
@@ -29,7 +27,7 @@ export async function POST(request: Request) {
         telefono,
     })
 
-    await admin.from("repartidores").insert({
+    const { error: repartidorError } = await admin.from("repartidores").insert({
         id: authData.user.id,
         dni,
         fecha_contratacion,

@@ -22,6 +22,14 @@ interface Pedido {
 export default function PedidosCliente() {
     const supabase = createClient()
     const [pedidos, setPedidos] = useState<Pedido[]>([])
+    const [busqueda, setBusqueda] = useState("")
+    const pedidosFiltrados = pedidos.filter(p => {
+        const q = busqueda.toLowerCase()
+        const local = p.locales?.nombre?.toLowerCase() ?? ""
+        const estado = p.estado?.toLowerCase() ?? ""
+        const id = p.id.slice(0, 8).toLowerCase()
+        return local.includes(q) || estado.includes(q) || id.includes(q)
+    })
     const [detalle, setDetalle] = useState<Pedido | null>(null)
     const [cargando, setCargando] = useState(true)
 
@@ -74,8 +82,16 @@ export default function PedidosCliente() {
     return (
         <div>
             <h1 className="text-2xl font-bold text-gray-800 mb-6">Historial de pedidos</h1>
-
-            {pedidos.length === 0 ? (
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    placeholder="Buscar por local, estado o N° pedido..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+            </div>
+            {pedidosFiltrados.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
                     <div className="text-5xl mb-4">🛒</div>
                     <p className="text-gray-500 mb-2">Todavía no realizaste ningún pedido</p>
@@ -97,7 +113,7 @@ export default function PedidosCliente() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {pedidos.map(p => {
+                                {pedidosFiltrados.map(p => {
                                     const { estilo, label } = estadoBadge(p.estado)
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
