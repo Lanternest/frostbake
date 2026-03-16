@@ -30,6 +30,13 @@ export default function Stock() {
     const supabase = createClient()
     const [productos, setProductos] = useState<Producto[]>([])
     const [busqueda, setBusqueda] = useState("")
+    const [modalAbierto, setModalAbierto] = useState(false)
+    const [editando, setEditando] = useState<Producto | null>(null)
+    const [form, setForm] = useState<FormProducto>(formVacio)
+    const [cargando, setCargando] = useState(false)
+    const [modalReponer, setModalReponer] = useState<Producto | null>(null)
+    const [cantidadReponer, setCantidadReponer] = useState("")
+    const [reponiendo, setReponiendo] = useState(false)
 
     const productosFiltrados = productos.filter(p => {
         const q = busqueda.toLowerCase()
@@ -38,10 +45,6 @@ export default function Stock() {
             p.peso_contenido?.toLowerCase().includes(q)
         )
     })
-    const [modalAbierto, setModalAbierto] = useState(false)
-    const [editando, setEditando] = useState<Producto | null>(null)
-    const [form, setForm] = useState<FormProducto>(formVacio)
-    const [cargando, setCargando] = useState(false)
 
     const cargarProductos = async () => {
         const { data } = await supabase
@@ -109,6 +112,21 @@ export default function Stock() {
         await cargarProductos()
     }
 
+    const handleReponer = async () => {
+        if (!modalReponer || !cantidadReponer) return
+        setReponiendo(true)
+
+        await supabase.from("productos").update({
+            stock: modalReponer.stock + parseInt(cantidadReponer),
+            created_at: new Date().toISOString(),
+        }).eq("id", modalReponer.id)
+
+        await cargarProductos()
+        setModalReponer(null)
+        setCantidadReponer("")
+        setReponiendo(false)
+    }
+
     const estadoBadge = (p: Producto) => {
         const estado = estadoProducto(p)
         if (estado === "vencido") return <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded-full">Descontinuado</span>
@@ -127,6 +145,7 @@ export default function Stock() {
                     + Agregar producto
                 </button>
             </div>
+
             <div className="mb-4">
                 <input
                     type="text"
@@ -168,6 +187,12 @@ export default function Stock() {
                                         <td className="px-4 py-3">
                                             <div className="flex gap-2">
                                                 <button
+                                                    onClick={() => { setModalReponer(p); setCantidadReponer("") }}
+                                                    className="text-green-600 hover:underline text-xs font-medium"
+                                                >
+                                                    Reponer
+                                                </button>
+                                                <button
                                                     onClick={() => abrirEditar(p)}
                                                     className="text-blue-600 hover:underline text-xs font-medium"
                                                 >
@@ -189,7 +214,48 @@ export default function Stock() {
                 </div>
             </div>
 
-            {/* Modal */}
+            {/* Modal reponer */}
+            {modalReponer && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-1">Reponer stock</h2>
+                        <p className="text-sm text-gray-500 mb-5">
+                            {modalReponer.nombre} — Stock actual: {modalReponer.stock}
+                        </p>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Cantidad a agregar
+                            </label>
+                            <input
+                                type="number"
+                                value={cantidadReponer}
+                                onChange={e => setCantidadReponer(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="0"
+                                min="1"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setModalReponer(null)}
+                                className="flex-1 border border-gray-200 text-gray-600 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleReponer}
+                                disabled={reponiendo || !cantidadReponer}
+                                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium py-2.5 rounded-xl transition-colors text-sm"
+                            >
+                                {reponiendo ? "Reponiendo..." : "Confirmar"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal crear/editar */}
             {modalAbierto && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
